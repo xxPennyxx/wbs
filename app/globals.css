@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #0f766e;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-ink;
+}
+
+/* ---- frappe-gantt v1.0.x theming (variable-driven) ---------------------- */
+.gantt-container {
+  @apply w-full overflow-auto rounded-lg border border-slate-200 bg-white;
+  max-height: calc(100vh - 200px); /* keep it compact with vertical scroll */
+
+  --g-bar-color: #14b8a6;
+  --g-bar-border: #0f766e;
+  --g-progress-color: #0f766e;
+  --g-handle-color: #0b5a54;
+  --g-arrow-color: #94a3b8;
+  --g-header-background: #f1f5f9;
+  --g-border-color: #e2e8f0;
+  --g-row-color: #ffffff;
+  --g-row-border-color: #f1f5f9;
+  --g-tick-color: #f1f5f9;
+  --g-tick-color-thick: #e2e8f0;
+  --g-text-dark: #334155;
+  --g-text-light: #ffffff;
+  --g-text-muted: #64748b;
+  --g-today-highlight: #14b8a6;
+  --g-weekend-highlight-color: #f8fafc;
+}
+
+/* Smaller, more readable labels */
+.gantt .bar-label {
+  font-size: 11px;
+}
+.gantt .lower-text,
+.gantt .upper-text {
+  font-size: 10px;
+}
+
+/* Summary rows (parent WBS nodes) rendered darker for hierarchy. */
+.gantt .bar-wrapper.summary .bar {
+  fill: #0b5a54;
+}
