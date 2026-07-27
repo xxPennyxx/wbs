@@ -1,6 +1,13 @@
 import { WbsTask } from "./types";
 import { WBS_COLUMNS, mapRow, pick } from "./schema";
 
+// Explicit, non-overlapping candidates so the planned bar is *only* planned
+// dates and the actual bar is *only* actual dates (no cross-fallback).
+const PLANNED_START = ["TASKPLANNEDSTARTDATE", "TaskStartDate", "Task start date"];
+const PLANNED_END = ["TASKPLANNEDFINISHDATE", "TaskEndDate", "Task end date"];
+const ACTUAL_START = ["Actualstartdate", "ActualStartDate", "Actual start date"];
+const ACTUAL_END = ["Actualenddate", "ActualEndDate", "Actual end date"];
+
 function toIsoDate(v: any): string | null {
   if (v === null || v === undefined || v === "") return null;
   const d = v instanceof Date ? v : new Date(v);
@@ -84,8 +91,10 @@ export function buildWbsTasks(rows: Record<string, any>[], projectId: string): W
         taskName: m.taskName != null ? String(m.taskName) : "",
         parentId: parentKey !== null && keySet.has(parentKey) ? idOf(parentKey) : null,
         level: Math.max(0, c.segs.length - 1),
-        startDate: toIsoDate(firstNonNull(c.raw, WBS_COLUMNS.startDate)),
-        endDate: toIsoDate(firstNonNull(c.raw, WBS_COLUMNS.endDate)),
+        startDate: toIsoDate(firstNonNull(c.raw, PLANNED_START)),
+        endDate: toIsoDate(firstNonNull(c.raw, PLANNED_END)),
+        actualStartDate: toIsoDate(firstNonNull(c.raw, ACTUAL_START)),
+        actualEndDate: toIsoDate(firstNonNull(c.raw, ACTUAL_END)),
         progress: progressRaw == null ? null : progressRaw <= 1 ? progressRaw * 100 : progressRaw,
         isSummary: hasChild.has(c.key),
         raw: c.raw,

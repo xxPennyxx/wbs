@@ -10,9 +10,11 @@ export interface WbsTask {
   taskName: string;
   parentId: string | null;  // derived from hierarchy
   level: number;            // indentation depth (0-based)
-  startDate: string | null; // ISO yyyy-mm-dd (planned start)
-  endDate: string | null;   // ISO yyyy-mm-dd (planned finish)
-  progress: number | null;  // 0-100
+  startDate: string | null;       // ISO yyyy-mm-dd (planned start)
+  endDate: string | null;         // ISO yyyy-mm-dd (planned finish)
+  actualStartDate: string | null; // ISO yyyy-mm-dd (actual start)
+  actualEndDate: string | null;   // ISO yyyy-mm-dd (actual end)
+  progress: number | null;        // 0-100
   isSummary: boolean;
   raw: Record<string, any>; // full WBS row (all view columns)
 }

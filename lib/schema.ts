@@ -41,7 +41,8 @@ export const WBS_COLUMNS = {
   projectName: ["ProjectName", "Project name"],
   // Dotted WBS id. Hierarchy is normally derived from HIERARCHYID (see wbs.ts);
   // these are display/fallback candidates.
-  wbsId: ["WBSTASKID", "PATHID", "WBS ID", "TASKSEQUENCE"],
+  // PATHID carries the nested sequence (1, 2, 2.1, 2.2, 3), so it is primary.
+  wbsId: ["PATHID", "WBSTASKID", "WBS ID", "TASKSEQUENCE"],
   taskName: ["TASKNAME", "TaskName", "Task name"],
   predecessors: ["Predecessors", "Predecessor"],
   category: ["TASKCATEGORY", "Category"],
