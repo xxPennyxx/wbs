@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 
 interface ProjectRow {
   id: string;
@@ -14,13 +15,13 @@ interface ProjectRow {
 const DISPLAY_COLUMNS = [
   "PROJECTID",
   "PROJECTNAME",
+  "WBSPERCENTAGE",
   "PROJECTGROUP",
   "PROJECTSTAGE",
   "PLANT_CAPACITYAC",
   "PLANT_CAPACITYDC",
   "SOLARPARKNAME",
   "WAREHOUSE",
-  "WBSPERCENTAGE",
   "ACTUALSTARTDATE",
   "ACTUALENDDATE",
   "CUSTOMERACCOUNT",
@@ -245,11 +246,13 @@ export default function ProjectsPage() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="text-lg font-semibold text-slate-800">Projects</h1>
-        <span className="text-sm text-slate-500">
-          {rows.length} of {projects.length} · {columns.length} columns
-        </span>
+      <div className="mb-5 flex flex-wrap items-end gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Projects</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {rows.length} of {projects.length} · {columns.length} columns
+          </p>
+        </div>
 
         <div className="ml-auto flex items-center gap-2">
           {/* Project type multiselect */}
@@ -261,7 +264,7 @@ export default function ProjectsPage() {
               }`}
             >
               Project group{types.length > 0 ? ` (${types.length})` : ""}
-              <span className="text-[10px] leading-none">▾</span>
+              <ChevronDown size={14} strokeWidth={2} />
             </button>
             {typeOpen && (
               <div className="absolute right-0 z-30 mt-1 w-56 rounded-md border border-slate-200 bg-white p-1 shadow-lg">
@@ -299,12 +302,6 @@ export default function ProjectsPage() {
               Reset
             </button>
           )}
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or ID…"
-            className="w-72 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-          />
         </div>
       </div>
 
@@ -319,7 +316,8 @@ export default function ProjectsPage() {
         <div className="py-20 text-center text-slate-500">Loading projects…</div>
       ) : (
         <>
-        <div className="overflow-auto rounded-lg border border-slate-200 bg-white" style={{ maxHeight: "calc(100vh - 220px)" }}>
+        {/* Height sized to show ~10 rows (plus the sticky header) and scroll beyond. */}
+        <div className="card scrollbar-thin overflow-auto" style={{ maxHeight: "420px" }}>
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
@@ -333,9 +331,11 @@ export default function ProjectsPage() {
                         title="Sort"
                       >
                         {label(c)}
-                        <span className="text-[10px] leading-none">
-                          {active ? (sort!.dir === "asc" ? "▲" : "▼") : "↕"}
-                        </span>
+                        {active ? (
+                          sort!.dir === "asc" ? <ChevronUp size={13} strokeWidth={2} /> : <ChevronDown size={13} strokeWidth={2} />
+                        ) : (
+                          <ChevronsUpDown size={13} strokeWidth={2} className="text-slate-400" />
+                        )}
                       </button>
                     </th>
                   );

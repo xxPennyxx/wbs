@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { Download } from "lucide-react";
 import { WbsTask } from "@/lib/types";
 
 type ViewMode = "Day" | "Week" | "Month";
@@ -10,7 +11,6 @@ const ROW_H = 40;             // height of one WBS row
 const BAR_H = 11;             // height of a single bar
 const HEADER_H = 52;          // two-tier date header (upper = year, lower = period)
 const LEFT_W = 340;           // task-name panel width
-const PAD_DAYS = 3;           // padding on each side of the date range
 
 // Pixels per day for each view mode (drives column width + bar positioning).
 const PX_PER_DAY: Record<ViewMode, number> = {
@@ -20,6 +20,19 @@ const PX_PER_DAY: Record<ViewMode, number> = {
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/* ------------------------------------------------------------- bar colours */
+// Three clearly distinct hues so Planned / Actual / Progress are easy to tell apart.
+const PLANNED_FILL = "#93c5fd";          // blue-300  (planned)
+const PLANNED_FILL_SUMMARY = "#bfdbfe";  // blue-200
+const PLANNED_STROKE = "#3b82f6";        // blue-500
+
+const ACTUAL_FILL = "#22c55e";           // green-500 (actual / completed)
+const ACTUAL_STROKE = "#16a34a";         // green-600
+
+const PROGRESS_TRACK = "#fde68a";        // amber-200 (in-progress track)
+const PROGRESS_FILL = "#f59e0b";         // amber-500 (in-progress completed %)
+const PROGRESS_STROKE = "#d97706";       // amber-600
 
 /* ------------------------------------------------------------- date utils */
 function parseISO(s: string | null | undefined): Date | null {
@@ -42,6 +55,9 @@ function startOfWeek(d: Date): Date {
 }
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+function endOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
 }
 function fmtDMY(d: Date): string {
   const dd = String(d.getDate()).padStart(2, "0");
@@ -99,8 +115,90 @@ function buildTicks(from: Date, to: Date, mode: ViewMode, pxPerDay: number) {
 }
 
 /* ------------------------------------------------------------- component */
-export default function GanttChart({ tasks }: { tasks: WbsTask[] }) {
+/* -------------------------------------------------------------- HTML export */
+// Curated CSS props copied so the exported file looks like the on-screen chart
+// without bloating the file with all ~350 computed properties per node.
+const EXPORT_PROPS = [
+  "display", "position", "top", "left", "right", "bottom", "float",
+  "flex-direction", "align-items", "justify-content", "flex", "flex-shrink",
+  "width", "height", "min-width", "max-width", "box-sizing",
+  "margin", "padding", "padding-left", "padding-right", "padding-top", "padding-bottom",
+  "border", "border-color", "border-width", "border-style", "border-radius", "border-right", "border-bottom",
+  "background-color", "color", "font-family", "font-size", "font-weight", "line-height",
+  "text-align", "text-transform", "letter-spacing", "white-space", "overflow", "vertical-align",
+  "box-shadow",
+];
+
+function inlineStyles(src: Element, clone: Element) {
+  if (src instanceof HTMLElement && clone instanceof HTMLElement) {
+    const cs = getComputedStyle(src);
+    let style = "";
+    for (const p of EXPORT_PROPS) {
+      const v = cs.getPropertyValue(p);
+      if (v && v !== "none" && v !== "normal") style += `${p}:${v};`;
+    }
+    clone.setAttribute("style", style);
+  }
+  const sc = src.children;
+  const cc = clone.children;
+  for (let i = 0; i < sc.length; i++) inlineStyles(sc[i], cc[i]);
+}
+
+export default function GanttChart({ tasks, projectId = "Gantt" }: { tasks: WbsTask[]; projectId?: string }) {
   const [viewMode, setViewMode] = useState<ViewMode>("Week");
+  const exportRef = useRef<HTMLDivElement>(null);
+
+  // Fetch the FPEL logo and inline it as a data URI so the export is self-contained.
+  const logoDataUri = async (): Promise<string> => {
+    try {
+      const res = await fetch("/FPEL.png");
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const fr = new FileReader();
+        fr.onloadend = () => resolve(String(fr.result));
+        fr.onerror = () => resolve("");
+        fr.readAsDataURL(blob);
+      });
+    } catch {
+      return "";
+    }
+  };
+
+  const exportHtml = async () => {
+    const src = exportRef.current;
+    if (!src) return;
+    const clone = src.cloneNode(true) as HTMLElement;
+    inlineStyles(src, clone);
+    // Show the whole chart in the static file (no inner scroll / clipping).
+    clone.style.maxHeight = "none";
+    clone.style.overflow = "visible";
+    const logo = await logoDataUri();
+    const now = new Date();
+    const stamp = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()}`;
+    const html =
+      `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+      `<title>Fourth Partner Energy Private Limited — Gantt ${projectId}</title>` +
+      `<style>body{margin:0;padding:28px 32px;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Arial,sans-serif;color:#1e293b;background:#f8fafc;}` +
+      `.hd{display:flex;align-items:center;gap:16px;border-bottom:1px solid #e2e8f0;padding-bottom:16px;margin-bottom:20px;}` +
+      `.hd img{height:44px;width:auto;}` +
+      `.hd h1{font-size:18px;font-weight:700;margin:0;letter-spacing:-0.01em;color:#0f172a;}` +
+      `.hd p{font-size:12px;color:#64748b;margin:3px 0 0;}` +
+      `svg{display:block;}</style></head><body>` +
+      `<div class="hd">${logo ? `<img src="${logo}" alt="Fourth Partner Energy"/>` : ""}` +
+      `<div><h1>Fourth Partner Energy Private Limited</h1>` +
+      `<p>Gantt chart — ${projectId} &nbsp;·&nbsp; Planned (blue) · Actual (green) · Progress (amber) &nbsp;·&nbsp; exported ${stamp}</p></div></div>` +
+      clone.outerHTML +
+      `</body></html>`;
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Gantt_${projectId.replace(/[^A-Za-z0-9_-]+/g, "_")}.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   // Rows that have at least one plottable bar (planned OR actual).
   const rows = useMemo(() => {
@@ -114,17 +212,21 @@ export default function GanttChart({ tasks }: { tasks: WbsTask[] }) {
         if (as && ae && ae < as) ae = as;
         return { t, ps, pe, as, ae };
       })
-      .filter((r) => (r.ps && r.pe) || (r.as && r.ae));
+      .filter((r) => (r.ps && r.pe) || r.as); // planned pair, or anything with an actual start
   }, [tasks]);
 
   const range = useMemo(() => {
     const all: Date[] = [];
+    let hasInProgress = false;
     for (const r of rows) {
       if (r.ps) all.push(r.ps);
       if (r.pe) all.push(r.pe);
       if (r.as) all.push(r.as);
       if (r.ae) all.push(r.ae);
+      if (r.as && !r.ae) hasInProgress = true;
     }
+    // In-progress bars run to "today", so make sure the range covers it.
+    if (hasInProgress) all.push(new Date());
     if (all.length === 0) return null;
     let min = all[0];
     let max = all[0];
@@ -132,10 +234,19 @@ export default function GanttChart({ tasks }: { tasks: WbsTask[] }) {
       if (d < min) min = d;
       if (d > max) max = d;
     }
-    return { from: addDays(min, -PAD_DAYS), to: addDays(max, PAD_DAYS) };
+    // Snap to whole months so the first/last month always render in full
+    // (e.g. all of Nov 2021 even when the project starts late in the month),
+    // which also keeps week/day tick labels from colliding at the edges.
+    return { from: startOfMonth(min), to: endOfMonth(max) };
   }, [rows]);
 
   const pxPerDay = PX_PER_DAY[viewMode];
+
+  // Midnight-today, used to draw the running end of in-progress bars.
+  const today = useMemo(() => {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  }, []);
 
   const { ticks, width, xOf, todayX } = useMemo(() => {
     if (!range) return { ticks: { lower: [], upper: [] }, width: 0, xOf: (_: Date) => 0, todayX: null as number | null };
@@ -162,31 +273,42 @@ export default function GanttChart({ tasks }: { tasks: WbsTask[] }) {
 
         <div className="ml-2 flex items-center gap-4 text-xs text-slate-500">
           <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-4 rounded-sm" style={{ background: "#5eead4" }} />
+            <span className="inline-block h-2.5 w-4 rounded-sm" style={{ background: PLANNED_FILL }} />
             Planned
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-4 rounded-sm" style={{ background: "#0f766e" }} />
+            <span className="inline-block h-2.5 w-4 rounded-sm" style={{ background: ACTUAL_FILL }} />
             Actual
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-4 rounded-sm" style={{ background: "#134e4a" }} />
+            <span className="inline-block h-2.5 w-4 rounded-sm" style={{ background: PROGRESS_FILL }} />
             Progress
           </span>
         </div>
 
-        <div className="ml-auto inline-flex overflow-hidden rounded-md border border-slate-300">
-          {modes.map((m) => (
+        <div className="ml-auto flex items-center gap-2">
+          <div className="inline-flex overflow-hidden rounded-md border border-slate-300">
+            {modes.map((m) => (
+              <button
+                key={m}
+                onClick={() => setViewMode(m)}
+                className={`px-3 py-1 text-sm ${
+                  viewMode === m ? "bg-brand text-white" : "bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          {rows.length > 0 && (
             <button
-              key={m}
-              onClick={() => setViewMode(m)}
-              className={`px-3 py-1 text-sm ${
-                viewMode === m ? "bg-brand text-white" : "bg-white text-slate-600 hover:bg-slate-50"
-              }`}
+              onClick={exportHtml}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-600 hover:bg-slate-50"
             >
-              {m}
+              <Download size={14} strokeWidth={2} />
+              Export HTML
             </button>
-          ))}
+          )}
         </div>
       </div>
 
@@ -195,7 +317,7 @@ export default function GanttChart({ tasks }: { tasks: WbsTask[] }) {
           No tasks have a planned or actual start/finish date, so there is nothing to plot.
         </div>
       ) : (
-        <div className="relative overflow-auto rounded-lg border border-slate-200 bg-white" style={{ maxHeight: "calc(100vh - 220px)" }}>
+        <div ref={exportRef} className="card scrollbar-thin relative overflow-auto" style={{ maxHeight: "calc(100vh - 220px)" }}>
           <div style={{ width: LEFT_W + width, minWidth: "100%" }}>
             {/* ---------------- header row ---------------- */}
             <div className="sticky top-0 z-30 flex" style={{ height: HEADER_H }}>
@@ -211,7 +333,9 @@ export default function GanttChart({ tasks }: { tasks: WbsTask[] }) {
                   <g key={`u${i}`}>
                     <line x1={u.x} y1={0} x2={u.x} y2={HEADER_H} stroke="#e2e8f0" strokeWidth={1} />
                     <text
-                      x={u.x + u.w / 2}
+                      // Clamp so edge labels (e.g. a short first/last month) stay fully visible
+                      // instead of being clipped at the timeline edges.
+                      x={Math.min(Math.max(u.x + u.w / 2, 42), width - 42)}
                       y={HEADER_H / 2 - 6}
                       textAnchor="middle"
                       fontSize={12}
@@ -226,7 +350,7 @@ export default function GanttChart({ tasks }: { tasks: WbsTask[] }) {
                 {ticks.lower.map((l, i) => (
                   <g key={`l${i}`}>
                     <text
-                      x={l.x + l.w / 2}
+                      x={Math.min(Math.max(l.x + l.w / 2, 24), width - 24)}
                       y={HEADER_H - 8}
                       textAnchor="middle"
                       fontSize={10}
@@ -296,7 +420,9 @@ export default function GanttChart({ tasks }: { tasks: WbsTask[] }) {
                   const actualY = top + ROW_H - 7 - BAR_H;
                   const els: JSX.Element[] = [];
 
-                  // Planned bar
+                  const prog = Math.max(0, Math.min(100, r.t.progress ?? 0));
+
+                  // Planned bar — planned start → planned end
                   if (r.ps && r.pe) {
                     const x = xOf(r.ps);
                     const w = Math.max(xOf(addDays(r.pe, 1)) - x, 2);
@@ -308,31 +434,38 @@ export default function GanttChart({ tasks }: { tasks: WbsTask[] }) {
                           width={w}
                           height={BAR_H}
                           rx={3}
-                          fill={r.t.isSummary ? "#99f6e4" : "#5eead4"}
-                          stroke="#2dd4bf"
+                          fill={r.t.isSummary ? PLANNED_FILL_SUMMARY : PLANNED_FILL}
+                          stroke={PLANNED_STROKE}
                           strokeWidth={0.5}
                         />
-                        <title>
-                          {`Planned: ${fmtDMY(r.ps)} → ${fmtDMY(r.pe)}`}
-                        </title>
+                        <title>{`Planned: ${fmtDMY(r.ps)} → ${fmtDMY(r.pe)}`}</title>
                       </g>
                     );
                   }
 
-                  // Actual bar (+ progress fill)
                   if (r.as && r.ae) {
+                    // Completed — actual start → actual end
                     const x = xOf(r.as);
                     const w = Math.max(xOf(addDays(r.ae, 1)) - x, 2);
-                    const prog = Math.max(0, Math.min(100, r.t.progress ?? 0));
                     els.push(
                       <g key="a">
-                        <rect x={x} y={actualY} width={w} height={BAR_H} rx={3} fill="#0f766e" />
+                        <rect x={x} y={actualY} width={w} height={BAR_H} rx={3} fill={ACTUAL_FILL} stroke={ACTUAL_STROKE} strokeWidth={0.5} />
+                        <title>{`Actual: ${fmtDMY(r.as)} → ${fmtDMY(r.ae)}  ·  ${Math.round(prog)}% complete`}</title>
+                      </g>
+                    );
+                  } else if (r.as) {
+                    // In progress — started but not finished. Track runs actual start → today,
+                    // with the completed % filled in.
+                    const x = xOf(r.as);
+                    const end = today > r.as ? today : addDays(r.as, 1);
+                    const w = Math.max(xOf(end) - x, 2);
+                    els.push(
+                      <g key="ip">
+                        <rect x={x} y={actualY} width={w} height={BAR_H} rx={3} fill={PROGRESS_TRACK} stroke={PROGRESS_STROKE} strokeWidth={0.5} />
                         {prog > 0 && (
-                          <rect x={x} y={actualY} width={(w * prog) / 100} height={BAR_H} rx={3} fill="#134e4a" />
+                          <rect x={x} y={actualY} width={(w * prog) / 100} height={BAR_H} rx={3} fill={PROGRESS_FILL} />
                         )}
-                        <title>
-                          {`Actual: ${fmtDMY(r.as)} → ${fmtDMY(r.ae)}  ·  ${Math.round(prog)}% complete`}
-                        </title>
+                        <title>{`In progress: started ${fmtDMY(r.as)}  ·  ${Math.round(prog)}% complete`}</title>
                       </g>
                     );
                   }

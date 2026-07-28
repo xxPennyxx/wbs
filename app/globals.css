@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,8 +13,45 @@ body {
   height: 100%;
 }
 
-body {
-  @apply bg-slate-50 text-ink;
+/* Slightly smaller, calmer type — matches the customer-aging look. */
+html {
+  font-size: 14.5px;
+}
+
+/* Soft page canvas with a faint brand-tinted wash at the top. */
+@layer base {
+  body {
+    @apply text-ink antialiased;
+    background-color: #f6f8f9;
+    background-image: radial-gradient(60% 40% at 100% 0%, rgba(20, 184, 166, 0.06), transparent 70%);
+  }
+  ::selection {
+    @apply bg-teal-100 text-brand-dark;
+  }
+}
+
+/* Reusable neat card surface. */
+@layer components {
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px -12px rgba(15, 23, 42, 0.12);
+  }
+}
+
+/* Thin, unobtrusive scrollbars for the scrollable tables/timeline (plain CSS). */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 9px;
+  width: 9px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: #cbd5e1;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* ---- frappe-gantt v1.0.x theming (variable-driven) ---------------------- */
