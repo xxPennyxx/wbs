@@ -4,6 +4,9 @@ export interface Project {
   raw: Record<string, any>;
 }
 
+/** One raw row from the ProjectBudgetBalanceReport view. */
+export type BudgetRow = Record<string, any>;
+
 export interface WbsTask {
   id: string;               // stable id for gantt (project + wbs path)
   wbsId: string;            // dotted display id, e.g. "2.1" ("" for root)

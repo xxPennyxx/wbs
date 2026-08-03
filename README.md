@@ -22,8 +22,61 @@ EPC project stands against plan:
    with a progress fill and a "today" marker. The year is always shown in the
    header at every zoom level.
 
+The app has two top-level menus in the header:
+
+- **Work Breakdown Structure** — the projects register, WBS table and Gantt chart
+  described above.
+- **Project Budget Analysis** — a budget-balance dashboard sourced from
+  `ProjectBudgetBalanceReport` (see the dedicated section below).
+
 All dates render as **DD-MM-YYYY** and numbers use the **en-IN** locale, per FPEL
 conventions.
+
+---
+
+## Project Budget Analysis (`/budget`)
+
+A budget-balance dashboard for the whole portfolio, sourced from the
+`ProjectBudgetBalanceReport` view. It runs for **all companies** — there is **no
+company filter** (the `COMPANY` field is returned as a regular, filterable
+column). The page has three tabs:
+
+1. **Summary** — one row per project, with the **Category** dimension collapsed.
+   Amount columns are **summed** across categories; capacity is held constant per
+   project (max); and the per-Wp metrics are **recomputed** as
+   `amount ÷ (CAPACITYKWP × 1000)` (INR per watt-peak).
+2. **Details** — the report query executed as-is (one row per project × category),
+   with a **TOTAL** row that sums the amount columns.
+3. **Graphical views** — KPI cards plus charts: portfolio budget utilisation
+   (consumed vs commitment vs remaining), total budget by project group, and the
+   top projects by total budget (consumed vs total).
+
+All amounts are in **INR** (en-IN locale). Both table tabs support **per-column
+sort and per-column filter** (a filter box under each header) and **Excel
+export** of the filtered/sorted view.
+
+### Budget query — `ProjectBudgetBalanceReport`
+
+The menu is driven by the query below. It is run once for **all companies** (the
+`company` filter is dropped so every company is returned, and `COMPANY` is added
+to the projection as a normal, filterable column). The literal per-company form
+is shown in the comment.
+
+```sql
+Select SOLARPARKNAME, PROJID, PROJECTNAME, PROJGROUPID, CATEGORYID,
+       ORIGINALBUDGET, COMMITTEDREVISIONS, BUDGET [TotalBudget],
+       UNCOMMITTEDREVISIONS, WAREHOUSE, SITE, PROJECTMANGER,
+       CONSUMEDBUDGET, COMMITTMENT, REMAININGBUDGET, TOTALBUDGETWP,
+       CAPACITYKWP, CONSUMEDBUDGETWP, REMAININGBUDGETWP, STOCKAMOUNT
+from ProjectBudgetBalanceReport
+where company = '1000';   -- per-company form; the app runs this for ALL companies
+```
+
+> **Scope:** the app executes the query **without** the `where company = '1000'`
+> clause so the report covers every company, and adds `COMPANY` to the `SELECT`
+> as a normal column that can be sorted/filtered like any other. The
+> implementation lives in [`app/api/budget/route.ts`](./app/api/budget/route.ts);
+> reshaping/aggregation lives in [`lib/budget.ts`](./lib/budget.ts).
 
 ---
 
@@ -121,8 +174,9 @@ npm run dev
 
 Open http://localhost:3000
 
-- `/` → projects list (click a row to open its WBS)
+- `/` → **Work Breakdown Structure** — projects list (click a row to open its WBS)
 - `/project/<id>` → WBS table + Gantt
+- `/budget` → **Project Budget Analysis** — Summary / Details / Graphical views
 - `/api/schema` → **diagnostic**: shows the real column names of both tables
 
 ## 4. Aligning to your real schema (important)
@@ -155,18 +209,23 @@ If the projects list or WBS shows blanks/dashes:
 
 ```
 app/
-  layout.tsx                     header + shell
+  layout.tsx                     header + top nav menu (WBS · Project Budget Analysis) + shell
   page.tsx                       projects list — search / filter / sort / group multiselect / pagination
   project/[id]/page.tsx          WBS table + Gantt tabs (client)
+  budget/page.tsx                Project Budget Analysis — Summary / Details / Graphical views (client)
   api/projects/route.ts          GET all projects (Projectmaster)
   api/projects/[id]/wbs/route.ts GET WBS rows for a project
+  api/budget/route.ts            GET ProjectBudgetBalanceReport rows (all companies)
   api/schema/route.ts            diagnostic column dump
 components/
+  NavMenu.tsx                    top navigation menu (active-state highlighting)
   GanttChart.tsx                 custom SVG Gantt — planned vs actual layered bars, Day/Week/Month
   WbsTable.tsx                   hierarchical WBS table
+  BudgetCharts.tsx               SVG budget charts (donut, group bars, top-projects bars)
 lib/
   db.ts                          mssql pool + connection-string parser
   schema.ts                      ← EDIT HERE to map columns
+  budget.ts                      budget column model, formatting & category-collapse aggregation
   introspect.ts                  INFORMATION_SCHEMA helpers
   wbs.ts                         raw rows → WBS tree (PathID hierarchy, planned/actual dates)
   types.ts                       shared types
